@@ -1,0 +1,21 @@
+{
+    "project": "PulseIQ-ETL",
+    "generated_at": "2026-10-12T10:31:51.956723+00:00",
+    "files_checked": 1,
+    "results": [
+        {
+            "file": "employees_cleaned.csv",
+            "total_rows": 6,
+            "missing_values": {
+                "employee_id": 0,
+                "employee_name": 0,
+                "department": 0,
+                "salary": 0,
+                "city": 0
+            },
+            "duplicate_rows": 0,
+            "invalid_salary_rows": 0,
+            "quality_status": "PASS"
+        }
+    ]
+}

@@ -1,0 +1,10 @@
+
+services:
+  pulseiq-etl:
+    build: .
+    container_name: pulseiq-etl
+    volumes:
+      - ./Data:/app/Data
+      - ./Logs:/app/Logs
+      - ./Docs:/app/Docs
+      - ./.env:/app/.env

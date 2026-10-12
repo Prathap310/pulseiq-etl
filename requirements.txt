@@ -1,0 +1,5 @@
+
+pandas
+pandera
+python-dotenv
+pyarrow
