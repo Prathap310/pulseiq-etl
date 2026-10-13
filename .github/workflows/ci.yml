@@ -23,8 +23,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Generate data quality report
+        run: python Src/data_quality.py
+
+      - name: Generate contract report when source is available
+        run: |
+          if [ -f "Data/Source/03_PulseIQ_Analytics_Star_Schema_Dataset.xlsx" ] || [ -f "Data/Raw/data_contracts.csv" ] || [ -f "Docs/data_contracts_full.csv" ]; then
+            python Src/validate_contracts.py
+          else
+            echo "Contract source is not in CI; contract report test will be skipped."
+          fi
+
       - name: Run ETL unit tests
         run: python -m unittest discover -s Src -p "test_etl.py" -v
 
       - name: Run validation unit tests
-        run: python -m unittest Src.test_validation -v
+        run: python -m unittest discover -s Src -p "test_validation.py" -v
