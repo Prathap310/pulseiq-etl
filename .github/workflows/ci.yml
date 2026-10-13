@@ -1,5 +1,4 @@
 
-
 name: PulseIQ-ETL CI
 
 on:
@@ -27,3 +26,5 @@ jobs:
       - name: Run ETL unit tests
         run: python -m unittest discover -s Src -p "test_etl.py" -v
 
+      - name: Run validation unit tests
+        run: python -m unittest Src.test_validation -v

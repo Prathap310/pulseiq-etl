@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
+RAW_DIR = PROJECT_DIR / "Data" / "Raw"
 CLEAN_DIR = PROJECT_DIR / "Data" / "Clean"
 REPORT_DIR = PROJECT_DIR / "Docs"
 
@@ -13,76 +14,125 @@ REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def check_data_quality(file_path):
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, low_memory=False)
 
-    # Check for missing values
     missing_values = {
         str(column): int(count)
         for column, count in df.isnull().sum().items()
+        if count > 0
     }
 
-    # Count duplicate rows
     duplicate_rows = int(df.duplicated().sum())
 
-    # Check salary values when the column exists
     invalid_salary = 0
-
     if "salary" in df.columns:
         salary = pd.to_numeric(df["salary"], errors="coerce")
         invalid_salary = int(
             (salary.isna() | (salary <= 0)).sum()
         )
 
+    duplicate_columns = int(df.columns.duplicated().sum())
+    empty_columns = int(
+        sum(not str(column).strip() for column in df.columns)
+    )
+
+    issues = []
+    if missing_values:
+        issues.append("Missing values")
+    if duplicate_rows:
+        issues.append("Duplicate rows")
+    if invalid_salary:
+        issues.append("Invalid salary values")
+    if duplicate_columns:
+        issues.append("Duplicate column names")
+    if empty_columns:
+        issues.append("Empty column names")
+
     return {
         "file": file_path.name,
+        "dataset_type": file_path.stem.split("_")[0],
         "total_rows": len(df),
-        "missing_values": missing_values,
+        "total_columns": len(df.columns),
+        "missing_cells": sum(missing_values.values()),
+        "missing_values_by_column": missing_values,
         "duplicate_rows": duplicate_rows,
         "invalid_salary_rows": invalid_salary,
-        "quality_status": (
-            "PASS"
-            if (
-                not df.isnull().any().any()
-                and duplicate_rows == 0
-                and invalid_salary == 0
-            )
-            else "CHECK"
-        ),
+        "duplicate_column_names": duplicate_columns,
+        "empty_column_names": empty_columns,
+        "issues_detected": issues,
+        "quality_status": "CHECK" if issues else "PASS",
     }
 
 
 def main():
-    files = list(CLEAN_DIR.glob("*_cleaned.csv"))
+    files = sorted(RAW_DIR.glob("*.csv"))
 
     if not files:
-        print("No cleaned CSV files found.")
+        print(f"No raw CSV files found in {RAW_DIR}")
         return
 
-    results = [
-        check_data_quality(file_path)
-        for file_path in files
-    ]
+    results = []
+    failures = []
+
+    for file_path in files:
+        try:
+            result = check_data_quality(file_path)
+            results.append(result)
+
+            print(
+                f"{result['file']}: "
+                f"{result['total_rows']} rows, "
+                f"{result['missing_cells']} missing cells, "
+                f"{result['duplicate_rows']} duplicate rows, "
+                f"status={result['quality_status']}"
+            )
+        except Exception as exc:
+            failures.append({
+                "file": file_path.name,
+                "error": str(exc),
+            })
+            print(f"ERROR: {file_path.name}: {exc}")
 
     report = {
         "project": "PulseIQ-ETL",
         "generated_at": datetime.now().astimezone().isoformat(),
+        "source_folder": str(RAW_DIR),
         "files_checked": len(results),
+        "files_failed_to_read": len(failures),
         "results": results,
+        "read_errors": failures,
+        "note": (
+            "Initial profiling only. Missing values and duplicates "
+            "must be evaluated against each dataset's data contract."
+        ),
     }
 
-    report_path = REPORT_DIR / "data_quality_report.json"
+    json_path = REPORT_DIR / "data_quality_report.json"
+    csv_path = REPORT_DIR / "raw_data_quality_report.csv"
 
-    with open(report_path, "w", encoding="utf-8") as file:
+    with json_path.open("w", encoding="utf-8") as file:
         json.dump(report, file, indent=4)
 
+    summary_rows = []
     for result in results:
-        print(f"\nFile: {result['file']}")
-        print(f"Rows: {result['total_rows']}")
-        print(f"Duplicate rows: {result['duplicate_rows']}")
-        print(f"Invalid salary rows: {result['invalid_salary_rows']}")
-        print(f"Quality status: {result['quality_status']}")
+        summary_rows.append({
+            "file": result["file"],
+            "dataset_type": result["dataset_type"],
+            "total_rows": result["total_rows"],
+            "total_columns": result["total_columns"],
+            "missing_cells": result["missing_cells"],
+            "duplicate_rows": result["duplicate_rows"],
+            "invalid_salary_rows": result["invalid_salary_rows"],
+            "quality_status": result["quality_status"],
+            "issues_detected": "; ".join(result["issues_detected"]),
+        })
 
-    print(f"\nReport saved to: {report_path}")
+    pd.DataFrame(summary_rows).to_csv(csv_path, index=False)
+
+    print(f"\nFiles checked: {len(results)}")
+    print(f"Files failed to read: {len(failures)}")
+    print(f"JSON report: {json_path}")
+    print(f"CSV report: {csv_path}")
 
 
 if __name__ == "__main__":

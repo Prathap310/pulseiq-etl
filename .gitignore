@@ -1,6 +1,23 @@
-﻿__pycache__/
+﻿
+# Python cache files
+__pycache__/
 *.py[cod]
+
+# Testing cache
 .pytest_cache/
+
+# Virtual environments
 .env
 .venv/
 venv/
+
+# Generated logs
+Logs/*.log
+
+# Generated ETL output files
+Data/Clean/*.csv
+Data/Rejected/*.csv
+
+# Generated reports
+Docs/data_quality_report.json
+Docs/etl_summary.json
