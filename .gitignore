@@ -21,3 +21,11 @@ Data/Rejected/*.csv
 # Generated reports
 Docs/data_quality_report.json
 Docs/etl_summary.json
+
+
+# Generated dataset exports
+Data/Raw/*.csv
+
+# Generated validation reports
+Docs/*.csv
+Docs/task1_validation_summary.txt
