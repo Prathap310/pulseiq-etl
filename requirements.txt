@@ -5,3 +5,5 @@ python-dotenv
 pyarrow
 psycopg2-binary
 pytest
+openpyxl
+

@@ -1,31 +1,11 @@
+
 services:
-  pulseiq-etl:
-    build: .
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: pulseiq-etl
     working_dir: /app
     volumes:
-      - ./:/app
-    depends_on:
-      warehouse-db:
-        condition: service_healthy
-
-  warehouse-db:
-    image: postgres:16
-    container_name: pulseiq-warehouse-db
-    environment:
-      POSTGRES_DB: pulseiq_warehouse
-      POSTGRES_USER: pulseiq_user
-      POSTGRES_PASSWORD: pulseiq_local_password
-    ports:
-      - "5433:5432"
-    volumes:
-      - warehouse_data:/var/lib/postgresql/data
-      - ./warehouse/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pulseiq_user -d pulseiq_warehouse"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  warehouse_data:
+      - .:/app
+    command: python Src/pipeline.py
