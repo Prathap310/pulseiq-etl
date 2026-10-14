@@ -1,5 +1,23 @@
 
 services:
+  db:
+    image: postgres:16
+    container_name: pulseiq-warehouse-db
+    environment:
+      POSTGRES_DB: pulseiq_wh
+      POSTGRES_USER: wos
+      POSTGRES_PASSWORD: wos
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./warehouse/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wos -d pulseiq_wh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   etl:
     build:
       context: .
@@ -9,3 +27,6 @@ services:
     volumes:
       - .:/app
     command: python Src/pipeline.py
+
+volumes:
+  postgres_data:
