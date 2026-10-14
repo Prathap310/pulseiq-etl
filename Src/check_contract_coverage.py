@@ -1,7 +1,7 @@
-
 from pathlib import Path
-import pandas as pd
 import re
+
+import pandas as pd
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 RAW_DIR = PROJECT_DIR / "Data" / "Raw"
@@ -14,6 +14,20 @@ def normalize(value):
     return re.sub(r"[^a-z0-9]+", "", value)
 
 
+def extract_dataset_names(feed):
+    """Extract dataset names from feeds like 'AI anomaly results (fact_anomaly)'."""
+    names = set()
+
+    for name in re.findall(r"\(([^()]*)\)", str(feed)):
+        if name.strip():
+            names.add(normalize(name))
+
+    if not names:
+        names.add(normalize(feed))
+
+    return names
+
+
 def main():
     if not CONTRACT_FILE.exists():
         raise FileNotFoundError(
@@ -22,53 +36,62 @@ def main():
         )
 
     contracts = pd.read_csv(CONTRACT_FILE, dtype=str).fillna("")
-    datasets = sorted(RAW_DIR.glob("*.csv"))
 
-    if not datasets:
-        raise FileNotFoundError(
-            f"No raw CSV datasets found in {RAW_DIR}"
+    required_columns = {"feed", "column_name"}
+    missing_columns = required_columns - set(contracts.columns)
+    if missing_columns:
+        raise ValueError(
+            "Contract file is missing required columns: "
+            + ", ".join(sorted(missing_columns))
         )
 
-    # Collect all contract values without assuming column names.
-    contract_values = set()
-    for column in contracts.columns:
-        for value in contracts[column]:
-            value = normalize(value)
-            if value:
-                contract_values.add(value)
+    if not RAW_DIR.exists():
+        raise FileNotFoundError(f"Raw data directory not found: {RAW_DIR}")
 
+    contract_names = set()
+    feed_column_counts = {}
+
+    for feed, group in contracts.groupby("feed", dropna=False):
+        names = extract_dataset_names(feed)
+        contract_names.update(names)
+
+        for name in names:
+            feed_column_counts[name] = (
+                feed_column_counts.get(name, 0)
+                + group["column_name"].str.strip().replace("", pd.NA).dropna().nunique()
+            )
+
+    datasets = sorted(RAW_DIR.glob("*.csv"))
     results = []
 
     for dataset in datasets:
         dataset_name = dataset.stem
         normalized_name = normalize(dataset_name)
-
-        # Exact matching only; avoid claiming a match from
-        # unrelated partial text.
-        matched = normalized_name in contract_values
+        is_contracted = normalized_name in contract_names
 
         results.append({
             "dataset": dataset_name,
-            "contract_name_exact_match": matched,
+            "contract_defined": is_contracted,
+            "contracted_columns": feed_column_counts.get(normalized_name, 0),
             "validation_status": (
-                "NAME_MATCH_REVIEW_REQUIRED"
-                if matched
-                else "NO_EXACT_NAME_MATCH"
+                "CONTRACT_DEFINED_REQUIRES_SCHEMA_VALIDATION"
+                if is_contracted
+                else "NO_CONTRACT_DEFINITION_FOUND"
             ),
         })
 
+    report = pd.DataFrame(results)
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
     output = DOCS_DIR / "contract_coverage.csv"
-    pd.DataFrame(results).to_csv(output, index=False)
+    report.to_csv(output, index=False)
 
-    print("Datasets checked:", len(results))
-    print("Exact name matches:", sum(
-        row["contract_name_exact_match"] for row in results
-    ))
+    print("Raw datasets checked:", len(results))
+    print("Datasets with contract definitions:", int(report["contract_defined"].sum()))
+    print("Datasets without contract definitions:", int((~report["contract_defined"]).sum()))
     print("Report saved to:", output)
     print(
-        "Note: name matching alone does not validate "
-        "columns, data types, or business rules."
+        "Note: this report identifies contract coverage only. "
+        "It does not validate data types, nullability, or business rules."
     )
 
 
